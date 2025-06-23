@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .map-container {
+            height: 300px;
+            border-radius: 1rem;
+            overflow: hidden;
+            position: relative;
+        }
+        .refresh-spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+    <div class="max-w-3xl mx-auto px-4 py-8 w-full">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <!-- Header -->
+            <div class="bg-indigo-600 px-6 py-4">
+                <h1 class="text-2xl font-bold text-white">🌍 Location Tracker</h1>
+                <p class="text-indigo-200 mt-1">Track and share your location securely</p>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="p-6">
+                <!-- Consent Section -->
+                <div class="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h2 class="font-semibold text-blue-800 mb-2">How this works</h2>
+                    <p class="text-blue-700">This tool will request your permission to access your location. Your coordinates will be displayed on a map and sent securely to our servers. You can refresh your location at any time.</p>
+                    <div class="mt-4 flex items-center">
+                        <input type="checkbox" id="consentCheckbox" class="mr-2">
+                        <label for="consentCheckbox" class="text-blue-800 font-medium">I understand and consent to sharing my location</label>
+                    </div>
+                </div>
+                
+                <!-- Tracking Panel -->
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <div id="statusPanel" class="text-center py-4">
+                        <p class="text-gray-500">Enable location tracking to begin</p>
+                    </div>
+                    
+                    <div class="flex justify-center">
+                        <button id="trackButton" disabled class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg flex items-center transition-all disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            <span id="buttonText">Enable Tracking</span>
+                            <span id="buttonSpinner" class="ml-2 hidden">
+                                <svg class="w-5 h-5 refresh-spinner" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Results Section -->
+                <div id="resultsSection" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <!-- Location Data -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                            <h2 class="font-semibold text-gray-800 mb-3">📍 Your Location</h2>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Latitude:</span>
+                                    <span id="latitudeValue" class="font-mono">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Longitude:</span>
+                                    <span id="longitudeValue" class="font-mono">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Accuracy:</span>
+                                    <span id="accuracyValue" class="font-mono">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Timestamp:</span>
+                                    <span id="timestampValue" class="font-mono text-sm">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Map Placeholder -->
+                        <div class="map-container bg-gray-200 flex items-center justify-center">
+                            <div id="mapPlaceholder" class="text-center p-4">
+                                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                                </svg>
+                                <p class="mt-2 text-gray-500">Map will appear here</p>
+                            </div>
+                            <iframe id="mapFrame" class="w-full h-full hidden" frameborder="0" style="border:0" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                    
+                    <!-- Server Response -->
+                    <div id="serverResponse" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                        <h3 class="font-semibold text-green-800 mb-2">✅ Location Sent Successfully</h3>
+                        <div class="flex justify-between">
+                            <span class="text-green-700">Server response:</span>
+                            <span id="serverResponseText" class="font-mono text-sm">-</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="flex justify-end space-x-3">
+                        <button id="refreshButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Refresh Location
+                        </button>
+                        <button id="shareButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+                            </svg>
+                            Share Location
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Error Section -->
+                <div id="errorSection" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mt-6">
+                    <h3 class="font-semibold text-red-800 mb-2">⚠️ Error</h3>
+                    <p id="errorMessage" class="text-red-700">An error occurred</p>
+                    <button id="tryAgainButton" class="mt-2 bg-red-100 hover:bg-red-200 text-red-800 font-medium py-1 px-3 rounded text-sm">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="bg-gray-50 px-6 py-3 border-t border-gray-200">
+                <p class="text-sm text-gray-500 text-center">Your location data is processed securely in accordance with our <a href="#" class="text-indigo-600 hover:underline">Privacy Policy</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM elements
+            const consentCheckbox = document.getElementById('consentCheckbox');
+            const trackButton = document.getElementById('trackButton');
+            const buttonText = document.getElementById('buttonText');
+            const buttonSpinner = document.getElementById('buttonSpinner');
+            const statusPanel = document.getElementById('statusPanel');
+            const resultsSection = document.getElementById('resultsSection');
+            const errorSection = document.getElementById('errorSection');
+            const errorMessage = document.getElementById('errorMessage');
+            const latitudeValue = document.getElementById('latitudeValue');
+            const longitudeValue = document.getElementById('longitudeValue');
+            const accuracyValue = document.getElementById('accuracyValue');
+            const timestampValue = document.getElementById('timestampValue');
+            const mapPlaceholder = document.getElementById('mapPlaceholder');
+            const mapFrame = document.getElementById('mapFrame');
+            const refreshButton = document.getElementById('refreshButton');
+            const shareButton = document.getElementById('shareButton');
+            const tryAgainButton = document.getElementById('tryAgainButton');
+            const serverResponse = document.getElementById('serverResponse');
+            const serverResponseText = document.getElementById('serverResponseText');
+            
+            // Track if we have consent
+            let hasConsent = false;
+            
+            // Update button state based on consent
+            consentCheckbox.addEventListener('change', function() {
+                hasConsent = this.checked;
+                trackButton.disabled = !hasConsent;
+                
+                if (hasConsent) {
+                    trackButton.classList.remove('bg-gray-400');
+                    trackButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+                } else {
+                    trackButton.classList.add('bg-gray-400');
+                    trackButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                }
+            });
+            
+            // Main tracking function
+            function trackLocation() {
+                buttonText.textContent = 'Locating...';
+                buttonSpinner.classList.remove('hidden');
+                
+                if (!navigator.geolocation) {
+                    showError("Geolocation is not supported by your browser.");
+                    return;
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    positionSuccess,
+                    positionError,
+                    { enableHighAccuracy: true }
+                );
+            }
+            
+            // Successful position callback
+            function positionSuccess(position) {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
+                const timestamp = new Date(position.timestamp).toLocaleString();
+                
+                // Update UI with location data
+                latitudeValue.textContent = latitude.toFixed(6);
+                longitudeValue.textContent = longitude.toFixed(6);
+                accuracyValue.textContent = `${Math.round(accuracy)} meters`;
+                timestampValue.textContent = timestamp;
+                
+                // Show map
+                mapPlaceholder.classList.add('hidden');
+                mapFrame.src = `https://maps.google.com/maps?q=${latitude},${longitude}&z=15&output=embed`;
+                mapFrame.classList.remove('hidden');
+                
+                // Update UI state
+                statusPanel.classList.add('hidden');
+                resultsSection.classList.remove('hidden');
+                errorSection.classList.add('hidden');
+                buttonText.textContent = 'Tracking Enabled';
+                buttonSpinner.classList.add('hidden');
+                
+                // Simulate sending to server
+                simulateServerSend(latitude, longitude);
+            }
+            
+            // Error position callback
+            function positionError(error) {
+                let errorMsg = "";
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMsg = "You denied the request for geolocation.";
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMsg = "Location information is unavailable.";
+                        break;
+                    case error.TIMEOUT:
+                        errorMsg = "The request to get user location timed out.";
+                        break;
+                    case error.UNKNOWN_ERROR:
+                        errorMsg = "An unknown error occurred.";
+                        break;
+                }
+                showError(errorMsg);
+            }
+            
+            // Show error message
+            function showError(msg) {
+                errorMessage.textContent = msg;
+                errorSection.classList.remove('hidden');
+                buttonText.textContent = 'Enable Tracking';
+                buttonSpinner.classList.add('hidden');
+            }
+            
+            // Simulate sending data to server
+            function simulateServerSend(latitude, longitude) {
+                serverResponseText.textContent = "Simulating server response...";
+                serverResponse.classList.remove('hidden');
+                
+                // Simulate network delay
+                setTimeout(() => {
+                    serverResponseText.textContent = `Location stored at ${new Date().toLocaleTimeString()}`;
+                }, 1500);
+            }
+            
+            // Event listeners
+            trackButton.addEventListener('click', trackLocation);
+            refreshButton.addEventListener('click', trackLocation);
+            tryAgainButton.addEventListener('click', trackLocation);
+            
+            // Share functionality
+            shareButton.addEventListener('click', function() {
+                const latitude = latitudeValue.textContent;
+                const longitude = longitudeValue.textContent;
+                
+                if (latitude === '-' || longitude === '-') {
+                    alert("No location data to share");
+                    return;
+                }
+                
+                const shareText = `My current location is latitude: ${latitude}, longitude: ${longitude}. See on map: https://www.google.com/maps?q=${latitude},${longitude}`;
+                
+                if (navigator.share) {
+                    navigator.share({
+                        title: 'My Location',
+                        text: shareText,
+                        url: `https://www.google.com/maps?q=${latitude},${longitude}`
+                    }).catch(err => {
+                        console.log('Error sharing:', err);
+                        copyToClipboard(shareText);
+                    });
+                } else {
+                    copyToClipboard(shareText);
+                }
+            });
+            
+            // Fallback for sharing
+            function copyToClipboard(text) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('Location copied to clipboard!');
+            }
+        });
+    </script>
+</body>
+</html>
